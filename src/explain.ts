@@ -1,7 +1,7 @@
 import type { Grid, Hint, UnitRef } from './puzzle';
 
 /** Garden bed names, matched to the bed colours in styles.css (--bed-0 …). */
-export const BED_NAMES = ['clover', 'sunflower', 'terracotta', 'rose', 'lavender', 'forget-me-not', 'mint', 'mulch', 'gravel'];
+export const BED_NAMES = ['sage', 'wheat', 'terracotta', 'clay', 'heather', 'slate', 'eucalyptus', 'ochre', 'stone'];
 
 export interface Explained {
   text: string;

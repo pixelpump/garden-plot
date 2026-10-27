@@ -23,16 +23,17 @@
   --gp-display: 'Montserrat', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --gp-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
-  /* Garden beds: one distinct colour each, light enough for dark marks. */
-  --bed-0: #a9d672; /* clover */
-  --bed-1: #f2d46b; /* sunflower */
-  --bed-2: #f0a77f; /* terracotta */
-  --bed-3: #e9a1c0; /* rose */
-  --bed-4: #b9a5e2; /* lavender */
-  --bed-5: #95c6ec; /* forget-me-not */
-  --bed-6: #86d4c1; /* mint */
-  --bed-7: #dcc49f; /* mulch */
-  --bed-8: #e8e3d3; /* gravel */
+  /* Garden beds: earth tones, spread across hue and lightness so neighbouring
+     beds stay easy to tell apart. Names match BED_NAMES in explain.ts. */
+  --bed-0: #a9b78c; /* sage */
+  --bed-1: #e0cb94; /* wheat */
+  --bed-2: #c98a68; /* terracotta */
+  --bed-3: #c49b93; /* clay */
+  --bed-4: #a598ad; /* heather */
+  --bed-5: #94a9b0; /* slate */
+  --bed-6: #8fae9c; /* eucalyptus */
+  --bed-7: #c9a157; /* ochre */
+  --bed-8: #d8d2c4; /* stone */
 
   position: relative;
   width: 100%;

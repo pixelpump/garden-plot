@@ -6,7 +6,7 @@ describe('explain', () => {
   it('names rows, columns and beds the way a person would', () => {
     expect(unitName({ kind: 'row', index: 2 })).toBe('row 3');
     expect(unitName({ kind: 'col', index: 0 })).toBe('column 1');
-    expect(unitName({ kind: 'bed', index: 4 })).toBe('the lavender bed');
+    expect(unitName({ kind: 'bed', index: 4 })).toBe('the heather bed');
   });
 
   it('every hint on the way through a week of puzzles has a sensible explanation', () => {
