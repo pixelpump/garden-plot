@@ -1,0 +1,493 @@
+/*
+ * Garden Plot. Everything is scoped under .gp-root so it can sit inside
+ * Shepherd without clashing with Tailwind. Colours follow the Staff Board:
+ * warm browns, leaf green and mustard.
+ */
+.gp-root {
+  --gp-bg: #2a2118;
+  --gp-panel: #3d3024;
+  --gp-panel-2: #4a3b2f;
+  --gp-panel-3: #5c4b3d;
+  --gp-line-soft: #6b5847;
+  --gp-text: #f3ece2;
+  --gp-muted: #b9a991;
+  --gp-green: #6fae3a;
+  --gp-green-dark: #4f8a24;
+  --gp-mustard: #c9a227;
+  --gp-red: #f08a73;
+  --gp-ink: #2a1d12;
+  --gp-line: #2a1d12;
+  --gp-thin: rgba(42, 29, 18, 0.22);
+  --gp-frame: #7a5434;
+  --gp-frame-dark: #4f3420;
+  --gp-display: 'Montserrat', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --gp-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Garden beds: one distinct colour each, light enough for dark marks. */
+  --bed-0: #a9d672; /* clover */
+  --bed-1: #f2d46b; /* sunflower */
+  --bed-2: #f0a77f; /* terracotta */
+  --bed-3: #e9a1c0; /* rose */
+  --bed-4: #b9a5e2; /* lavender */
+  --bed-5: #95c6ec; /* forget-me-not */
+  --bed-6: #86d4c1; /* mint */
+  --bed-7: #dcc49f; /* mulch */
+  --bed-8: #e8e3d3; /* gravel */
+
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--gp-bg);
+  color: var(--gp-text);
+  font-family: var(--gp-display);
+  -webkit-tap-highlight-color: transparent;
+}
+.gp-root *,
+.gp-root *::before,
+.gp-root *::after {
+  box-sizing: border-box;
+}
+.gp-root button {
+  font-family: inherit;
+}
+.gp-root button:focus-visible {
+  outline: 3px solid var(--gp-mustard);
+  outline-offset: 2px;
+}
+.gp-root [hidden] {
+  display: none !important;
+}
+
+/* --- shared pieces --------------------------------------------------------- */
+.gp-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 18px;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+}
+.gp-kicker {
+  font-family: var(--gp-mono);
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gp-muted);
+}
+.gp-title {
+  margin: 0;
+  font-size: clamp(44px, 14vw, 64px);
+  font-weight: 900;
+  line-height: 0.92;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+.gp-title span {
+  color: var(--gp-green);
+}
+.gp-card {
+  background: var(--gp-panel);
+  border: 1px solid var(--gp-line-soft);
+  border-radius: 14px;
+  padding: 14px;
+}
+.gp-desc {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--gp-muted);
+}
+.gp-desc strong {
+  color: var(--gp-text);
+}
+.gp-btn {
+  min-height: 58px;
+  width: 100%;
+  border: 0;
+  border-radius: 14px;
+  background: var(--gp-green);
+  color: #16200c;
+  font-size: 20px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.gp-btn:active {
+  transform: translateY(1px);
+}
+.gp-btn.gp-secondary {
+  min-height: 50px;
+  background: var(--gp-panel-3);
+  color: var(--gp-text);
+  font-size: 16px;
+}
+.gp-btn.gp-small {
+  min-height: 46px;
+  font-size: 14px;
+}
+.gp-icon-btn {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border: 0;
+  border-radius: 10px;
+  background: var(--gp-panel-3);
+  color: var(--gp-text);
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.gp-note {
+  font-family: var(--gp-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--gp-muted);
+}
+.gp-note strong {
+  color: var(--gp-text);
+}
+.gp-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--gp-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gp-muted);
+}
+.gp-link {
+  background: none;
+  border: 0;
+  padding: 10px 0;
+  color: var(--gp-muted);
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* --- menu ------------------------------------------------------------------- */
+.gp-rules {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.gp-rules > div:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.gp-board.gp-example {
+  width: 96px;
+  flex: none;
+  border-width: 3px !important;
+  box-shadow: 0 3px 0 var(--gp-frame-dark) !important;
+  pointer-events: none;
+}
+.gp-example .gp-t {
+  display: block;
+}
+
+/* --- game ------------------------------------------------------------------- */
+.gp-game {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: max(10px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+}
+.gp-bar,
+.gp-tools,
+.gp-chips,
+.gp-coach {
+  width: 100%;
+  max-width: 460px;
+}
+.gp-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.gp-label {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--gp-mono);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gp-muted);
+}
+.gp-assisted {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--gp-panel-3);
+  color: var(--gp-mustard);
+  font: 700 11px var(--gp-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.gp-time {
+  font-family: var(--gp-mono);
+  font-size: 28px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.gp-status {
+  min-height: 1.4em;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--gp-muted);
+  text-align: center;
+}
+.gp-status.gp-warn {
+  color: var(--gp-red);
+}
+
+/* Coach / hint card */
+.gp-coach {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 12px 12px 14px;
+  border-radius: 12px;
+  background: #4a3f22;
+  border: 1px solid var(--gp-mustard);
+  font-size: 14.5px;
+  line-height: 1.4;
+  animation: gp-in 0.2s ease-out;
+}
+.gp-coach p {
+  flex: 1;
+  margin: 0;
+}
+.gp-coach-icon {
+  font-size: 18px;
+  line-height: 1.2;
+}
+.gp-coach .gp-icon-btn {
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+  background: transparent;
+  color: var(--gp-muted);
+}
+.gp-coach-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.gp-coach-actions .gp-btn {
+  width: auto;
+  min-height: 40px;
+  padding: 0 16px;
+  font-size: 14px;
+}
+@keyframes gp-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* The plot: a raised wooden bed holding the grid. */
+.gp-board-wrap {
+  position: relative;
+  width: min(100%, 460px, 54vh);
+}
+.gp-board {
+  display: grid;
+  /* Fixed, equal rows: a tree or × must never resize a row under the player's finger. */
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--n), minmax(0, 1fr));
+  aspect-ratio: 1;
+  width: 100%;
+  border: 5px solid var(--gp-frame);
+  border-radius: 8px;
+  outline: 2px solid var(--gp-frame-dark);
+  background: var(--gp-frame);
+  overflow: hidden;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  box-shadow: 0 6px 0 var(--gp-frame-dark);
+}
+.gp-board.gp-hidden .gp-cell {
+  background: var(--gp-panel-3);
+}
+.gp-board.gp-hidden .gp-cell > * {
+  visibility: hidden;
+}
+.gp-cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  background: var(--bed);
+  cursor: pointer;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.gp-x,
+.gp-t {
+  grid-area: 1 / 1;
+  display: none;
+  pointer-events: none;
+}
+.gp-x {
+  color: var(--gp-ink);
+  opacity: 0.55;
+  font: 700 clamp(14px, 5vw, 22px) / 1 var(--gp-display);
+}
+.gp-cell.gp-auto .gp-x {
+  opacity: 0.28;
+}
+.gp-t {
+  width: 72%;
+  height: 72%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 0 rgba(42, 29, 18, 0.35));
+}
+.gp-cell.gp-mark .gp-x,
+.gp-cell.gp-tree .gp-t {
+  display: block;
+}
+.gp-cell.gp-bad::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(135deg, rgba(200, 40, 30, 0.45) 0 4px, transparent 4px 9px);
+  pointer-events: none;
+}
+/* Hint highlights: what the hint is about, and what to act on. */
+.gp-cell.gp-focus::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.38);
+  pointer-events: none;
+}
+/* An outline paints above the cell's own overlays, so the ring always shows. */
+.gp-cell.gp-target {
+  outline: 4px solid #e0a400;
+  outline-offset: -4px;
+  z-index: 1;
+  animation: gp-glow 1s ease-in-out infinite;
+}
+@keyframes gp-glow {
+  50% {
+    outline-color: #3a2a06;
+  }
+}
+.gp-cell.gp-pop .gp-t {
+  animation: gp-pop 0.35s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+  animation-delay: inherit;
+}
+@keyframes gp-pop {
+  from {
+    transform: scale(0.3) translateY(30%);
+  }
+  to {
+    transform: none;
+  }
+}
+.gp-board.gp-solved {
+  outline-color: var(--gp-green);
+}
+.gp-paused {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(42, 33, 24, 0.75);
+  color: var(--gp-text);
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.gp-tools {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+.gp-tools .gp-hint-btn {
+  background: #6b5524;
+  color: #fff3c8;
+}
+.gp-chips {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.gp-chip {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--gp-line-soft);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--gp-muted);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.gp-chip[aria-pressed='true'] {
+  border-color: var(--gp-green);
+  color: var(--gp-text);
+  background: rgba(111, 174, 58, 0.18);
+}
+
+/* --- results ------------------------------------------------------------- */
+.gp-result-time {
+  font-family: var(--gp-mono);
+  font-size: clamp(56px, 19vw, 84px);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+}
+.gp-badge {
+  align-self: flex-start;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--gp-mustard);
+  color: #231a08;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.gp-share-text {
+  width: 100%;
+  min-height: 84px;
+  padding: 10px;
+  border: 1px solid var(--gp-line-soft);
+  border-radius: 10px;
+  background: var(--gp-panel);
+  color: var(--gp-text);
+  font: 14px/1.4 var(--gp-mono);
+  resize: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gp-cell.gp-pop .gp-t,
+  .gp-cell.gp-target,
+  .gp-coach {
+    animation: none;
+  }
+}
