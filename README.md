@@ -17,7 +17,12 @@ npm run build      # typecheck + production build in dist/ (~10 KB gzipped)
 - **Hint** explains the next logical step in plain words and highlights the squares involved. On the daily puzzle, the first press warns that hints make the time *assisted*. Assisted times are kept but stay off the Staff Board.
 - **How to play**: a guided 5×5 where the hint coach walks you through every step. It's offered first to new players.
 - Leaving the app pauses the clock and hides the board.
-- Your first solve each day is your time. Streaks count consecutive days solved. **Share result** copies a short summary for the crew chat.
+- Your first solve each day is your time. Streaks count consecutive days solved. **Share result** copies a short summary for the crew chat. When today's is done, the menu counts down to the next puzzle.
+- **Archive**: a calendar of every daily puzzle since #1, showing which you solved, which needed hints, and which you caught up on later. Catch-up solves don't count for streaks or the Staff Board. It also shows how many you've solved and your best (no-hint) time per size.
+
+### Art
+
+The tree is hand-drawn pixel art: `scripts/draw-tree.py` writes `src/assets/tree.png` from a 16×16 character map. Edit the map and re-run it, or simply replace the PNG with other art of any size.
 
 ### The weekly rhythm
 

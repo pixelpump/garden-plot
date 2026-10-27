@@ -486,6 +486,8 @@ export function checkBoard(p: Puzzle, board: Uint8Array): BoardCheck {
 
 /** Day 1 of Garden Plot. */
 const EPOCH = Date.UTC(2026, 9, 1);
+/** Day 1 as a local date (noon, so time zones never shift it a day). */
+export const EPOCH_DATE = new Date(2026, 9, 1, 12);
 
 /** Bigger and trickier through the week, like a newspaper crossword. Index = getDay(). */
 const WEEK: GenerateOptions[] = [

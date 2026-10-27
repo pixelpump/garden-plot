@@ -491,3 +491,144 @@
     animation: none;
   }
 }
+
+/* --- menu: two buttons side by side ---------------------------------------- */
+.gp-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* --- archive ------------------------------------------------------------- */
+.gp-screen.gp-archive {
+  justify-content: flex-start;
+  gap: 14px;
+}
+.gp-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--gp-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--gp-muted);
+}
+.gp-stats strong {
+  color: var(--gp-text);
+}
+.gp-cal-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.gp-cal-nav .gp-icon-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.gp-cal-month {
+  flex: 1;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+}
+.gp-cal {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+}
+.gp-cal-head {
+  text-align: center;
+  font: 700 11px var(--gp-mono);
+  color: var(--gp-muted);
+  padding-bottom: 2px;
+}
+.gp-cal-day {
+  position: relative;
+  aspect-ratio: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border: 1px solid var(--gp-line-soft);
+  border-radius: 8px;
+  background: var(--gp-panel);
+  color: var(--gp-text);
+  font: 700 14px var(--gp-display);
+  cursor: pointer;
+  padding: 0;
+}
+.gp-cal-day small {
+  font: 600 9px var(--gp-mono);
+  color: var(--gp-muted);
+}
+.gp-cal-day img {
+  width: 46%;
+  image-rendering: pixelated;
+}
+.gp-cal-off {
+  border-style: dashed;
+  background: transparent;
+  color: var(--gp-line-soft);
+  cursor: default;
+}
+.gp-cal-solved {
+  background: #3f5a28;
+  border-color: var(--gp-green);
+}
+.gp-cal-assisted {
+  background: #4f4422;
+  border-color: var(--gp-mustard);
+}
+.gp-cal-late {
+  border: 2px solid var(--gp-green);
+}
+.gp-cal-today {
+  box-shadow: 0 0 0 2px var(--gp-text);
+}
+.gp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font: 12px var(--gp-mono);
+  color: var(--gp-muted);
+}
+.gp-legend i {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  border-radius: 3px;
+  border: 1px solid var(--gp-line-soft);
+}
+
+/* --- falling leaves on a solve -------------------------------------------- */
+.gp-leaf {
+  position: absolute;
+  top: -6%;
+  width: 9px;
+  height: 7px;
+  border-radius: 0 70% 0 70%;
+  pointer-events: none;
+  z-index: 3;
+  animation: gp-fall linear both;
+}
+@keyframes gp-fall {
+  from {
+    transform: translate(0, 0) rotate(0);
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  to {
+    transform: translate(var(--drift), 115cqh) rotate(var(--spin));
+    opacity: 0;
+  }
+}
+.gp-board-wrap {
+  container-type: size;
+  aspect-ratio: 1;
+}

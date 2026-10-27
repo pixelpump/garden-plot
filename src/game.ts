@@ -1,6 +1,6 @@
 import treeUrl from './assets/tree.png';
 import { BED_NAMES, explain } from './explain';
-import { checkBoard, daily, EMPTY, generate, Grid, hintFor, impliedMarks, MARK, PRACTICE, TREE, TUTORIAL, type Puzzle } from './puzzle';
+import { checkBoard, daily, EMPTY, EPOCH_DATE, generate, Grid, hintFor, impliedMarks, MARK, PRACTICE, TREE, TUTORIAL, type Daily, type Puzzle } from './puzzle';
 import { Sounds } from './sounds';
 import './styles.css';
 
@@ -15,6 +15,8 @@ export interface GardenPlotResult {
   hints: number;
   /** Tree column per row, so the server can check it. */
   answer: number[];
+  /** Played from the archive after its day. Doesn't count for streaks or the Staff Board. */
+  archive?: boolean;
 }
 
 export interface GardenPlotOptions {
@@ -28,7 +30,7 @@ export interface GardenPlotOptions {
   onExit?(): void;
 }
 
-type Mode = 'daily' | 'practice' | 'tutorial';
+type Mode = 'daily' | 'archive' | 'practice' | 'tutorial';
 interface DayRecord {
   /** Time in ms of the first solve that day. */
   t: number;
@@ -65,7 +67,10 @@ const store = {
   },
 };
 const KEY = {
+  /** First solve on the day itself. */
   day: (key: string) => `garden-plot:day:${key}`,
+  /** First solve of a past day, from the archive. */
+  late: (key: string) => `garden-plot:late:${key}`,
   autoX: 'garden-plot:auto-x',
   muted: 'garden-plot:muted',
   toured: 'garden-plot:tutorial-done',
@@ -79,7 +84,11 @@ const TUTORIAL_INTRO =
 
 /** Mount Garden Plot into `el` (which should have a size, e.g. the full screen). */
 export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): { destroy(): void } {
-  const today = daily(opts.date ?? new Date(), opts.salt);
+  let today = daily(opts.date ?? new Date(), opts.salt);
+  /** Pick up a new day if the app was left open past midnight. */
+  const refreshToday = () => {
+    if (!opts.date) today = daily(new Date(), opts.salt);
+  };
   const sounds = new Sounds();
   sounds.muted = store.get(KEY.muted) === '1';
   let autoX = store.get(KEY.autoX) === '1';
@@ -119,12 +128,15 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
       </div>
     </div>
     <div class="gp-screen" data-screen="results" hidden></div>
+    <div class="gp-screen gp-archive" data-screen="archive" hidden></div>
   `;
   el.appendChild(root);
 
   const $ = <T extends HTMLElement>(s: string) => root.querySelector(s) as T;
   const menu = $('[data-screen="menu"]');
   const results = $('[data-screen="results"]');
+  const archive = $('[data-screen="archive"]');
+  const boardWrap = $('.gp-board-wrap');
   const gameEl = $('.gp-game');
   const boardEl = $('.gp-board');
   const labelEl = $('.gp-label');
@@ -138,10 +150,11 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
   const hintBtn = $('[data-act="hint"]');
   const autoChip = $('[data-act="auto-x"]');
   const soundChip = $('[data-act="mute"]');
-  const show = (which: 'menu' | 'game' | 'results') => {
+  const show = (which: 'menu' | 'game' | 'results' | 'archive') => {
     menu.hidden = which !== 'menu';
     gameEl.hidden = which !== 'game';
     results.hidden = which !== 'results';
+    archive.hidden = which !== 'archive';
     root.scrollTop = 0;
   };
 
@@ -149,6 +162,9 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
   let puzzle!: Puzzle;
   let grid!: Grid;
   let mode: Mode = 'daily';
+  /** The daily puzzle being played (today's, or a past one from the archive). */
+  let current: Daily = today;
+  let archiveMonth = new Date(today.key.slice(0, 7) + '-01T12:00:00');
   /** What the player has actually entered. Auto-× marks are layered on top. */
   let manual: Uint8Array = new Uint8Array(0);
   let cells: HTMLElement[] = [];
@@ -163,13 +179,45 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
   let done = false;
   let timer = 0;
 
-  const dayRecord = (key = today.key): DayRecord | null => {
+  const readRecord = (k: string): DayRecord | null => {
     try {
-      return JSON.parse(store.get(KEY.day(key)) ?? 'null') as DayRecord | null;
+      return JSON.parse(store.get(k) ?? 'null') as DayRecord | null;
     } catch {
       return null;
     }
   };
+  const dayRecord = (key = today.key) => readRecord(KEY.day(key));
+  const lateRecord = (key: string) => readRecord(KEY.late(key));
+  const dateOf = (key: string) => new Date(`${key}T12:00:00`);
+  const shortDate = (key: string) => dateOf(key).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+
+  /** Time until the next daily puzzle, e.g. "5h 12m". */
+  function untilTomorrow(): string {
+    const n = new Date();
+    const mins = Math.max(1, Math.ceil((new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1).getTime() - n.getTime()) / 60000));
+    return mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
+  }
+
+  /** Every day from #1 to today, newest first. */
+  function allDays(): Daily[] {
+    const out: Daily[] = [];
+    for (const d = dateOf(today.key); d >= EPOCH_DATE; d.setDate(d.getDate() - 1)) out.push(daily(d, opts.salt));
+    return out;
+  }
+
+  /** On-the-day solves without hints, and best times per size. */
+  function stats() {
+    const days = allDays();
+    const solved = days.filter((d) => dayRecord(d.key));
+    const best = new Map<number, number>();
+    for (const d of solved) {
+      const r = dayRecord(d.key)!;
+      if (r.a) continue;
+      const size = d.options.size;
+      best.set(size, Math.min(best.get(size) ?? Infinity, r.t));
+    }
+    return { played: solved.length, best };
+  }
   const now = () => elapsed + (running ? performance.now() - runningSince : 0);
   const startClock = () => {
     if (running || done) return;
@@ -225,11 +273,12 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
   }
 
   function renderMenu() {
+    refreshToday();
     const rec = dayRecord();
     const s = streak();
     const toured = store.get(KEY.toured) === '1';
     const todayLine = rec
-      ? `Today: solved in <strong>${fmt(rec.t)}</strong>${rec.a ? ' (with hints)' : ''}. New puzzle tomorrow.`
+      ? `Today: solved in <strong>${fmt(rec.t)}</strong>${rec.a ? ' (with hints)' : ''}. Next puzzle in <strong class="gp-countdown">${untilTomorrow()}</strong>.`
       : `Today's plot: <strong>${today.options.size}×${today.options.size}</strong>. Smaller early in the week, bigger by the weekend.`;
     menu.innerHTML = `
       <div>
@@ -247,7 +296,10 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
       ${
         toured
           ? `<button class="gp-btn" data-act="daily">${rec ? 'Play today again' : "Play today's puzzle"}</button>
-             <button class="gp-btn gp-secondary" data-act="practice">Practice puzzle</button>`
+             <div class="gp-pair">
+               <button class="gp-btn gp-secondary" data-act="archive">Archive</button>
+               <button class="gp-btn gp-secondary" data-act="practice">Practice</button>
+             </div>`
           : `<button class="gp-btn" data-act="tutorial">Take the 1-minute tour</button>
              <button class="gp-btn gp-secondary" data-act="daily">${rec ? 'Play today again' : "Play today's puzzle"}</button>`
       }
@@ -261,9 +313,65 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
     `;
   }
 
+  // --- archive -------------------------------------------------------------------
+  function renderArchive() {
+    refreshToday();
+    const first = new Date(archiveMonth.getFullYear(), archiveMonth.getMonth(), 1, 12);
+    const monthName = first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    const canBack = first > EPOCH_DATE;
+    const canNext = new Date(first.getFullYear(), first.getMonth() + 1, 1, 12) <= dateOf(today.key);
+    const st = stats();
+    const bests = [...st.best.entries()].sort((a, b) => a[0] - b[0]).map(([n, t]) => `${n}×${n} <strong>${fmt(t)}</strong>`);
+    const heads = ['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => `<div class="gp-cal-head" aria-hidden="true">${d}</div>`).join('');
+    const blanks = '<div></div>'.repeat(first.getDay());
+    const daysIn = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+    let dayCells = '';
+    for (let d = 1; d <= daysIn; d++) {
+      const date = new Date(first.getFullYear(), first.getMonth(), d, 12);
+      const info = daily(date, opts.salt);
+      const future = info.key > today.key;
+      const before = date < EPOCH_DATE;
+      const rec = dayRecord(info.key);
+      const late = lateRecord(info.key);
+      const state = rec ? (rec.a ? 'assisted' : 'solved') : late ? 'late' : 'open';
+      const label = `${shortDate(info.key)}, puzzle ${info.number}, ${info.options.size} by ${info.options.size}, ${
+        rec ? `solved in ${fmt(rec.t)}${rec.a ? ' with hints' : ''}` : late ? `solved later in ${fmt(late.t)}` : future || before ? 'not available' : 'not played'
+      }`;
+      dayCells +=
+        future || before
+          ? `<div class="gp-cal-day gp-cal-off" aria-hidden="true">${d}</div>`
+          : `<button class="gp-cal-day gp-cal-${state}${info.key === today.key ? ' gp-cal-today' : ''}" data-act="archive-day" data-key="${info.key}" aria-label="${esc(label)}">
+               <span>${d}</span>${rec || late ? `<img src="${treeUrl}" alt="">` : `<small>${info.options.size}×${info.options.size}</small>`}
+             </button>`;
+    }
+    archive.innerHTML = `
+      <div class="gp-bar">
+        <button class="gp-icon-btn" data-act="menu" aria-label="Back to menu">←</button>
+        <div class="gp-label">Archive</div>
+      </div>
+      <div class="gp-card gp-stats">
+        <div><strong>${st.played}</strong> solved on the day${streak() > 1 ? ` · <strong>${streak()}</strong>-day streak` : ''}</div>
+        ${bests.length ? `<div>Best: ${bests.join(' · ')}</div>` : '<div>Best times show up here (no-hint solves only).</div>'}
+      </div>
+      <div class="gp-cal-nav">
+        <button class="gp-icon-btn" data-act="archive-month" data-step="-1" aria-label="Previous month" ${canBack ? '' : 'disabled'}>‹</button>
+        <div class="gp-cal-month">${monthName}</div>
+        <button class="gp-icon-btn" data-act="archive-month" data-step="1" aria-label="Next month" ${canNext ? '' : 'disabled'}>›</button>
+      </div>
+      <div class="gp-cal">${heads}${blanks}${dayCells}</div>
+      <p class="gp-note">Missed a day? Play it here. Catch-up solves don't count for streaks or the Staff Board.</p>
+      <div class="gp-legend">
+        <span><i class="gp-cal-solved"></i>Solved</span>
+        <span><i class="gp-cal-assisted"></i>With hints</span>
+        <span><i class="gp-cal-late"></i>Caught up</span>
+      </div>
+    `;
+  }
+
   // --- game --------------------------------------------------------------------
-  function start(p: Puzzle, m: Mode) {
+  function start(p: Puzzle, m: Mode, info: Daily = today) {
     puzzle = p;
+    current = info;
     grid = new Grid(p.size, p.beds);
     mode = m;
     manual = new Uint8Array(grid.n);
@@ -274,7 +382,13 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
     elapsed = 0;
     done = false;
     labelEl.textContent =
-      m === 'daily' ? `#${today.number} · ${today.weekday}` : m === 'practice' ? `Practice · ${p.size}×${p.size}` : 'How to play';
+      m === 'daily'
+        ? `#${today.number} · ${today.weekday}`
+        : m === 'archive'
+          ? `#${info.number} · ${shortDate(info.key)}`
+          : m === 'practice'
+            ? `Practice · ${p.size}×${p.size}`
+            : 'How to play';
     timeEl.hidden = m === 'tutorial';
     hintBtn.hidden = m === 'tutorial';
     assistedEl.hidden = true;
@@ -476,6 +590,7 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
     boardEl.classList.add('gp-solved');
     statusEl.textContent = 'Planted!';
     sounds.solved();
+    fallingLeaves();
 
     if (mode === 'tutorial') {
       store.set(KEY.toured, '1');
@@ -491,27 +606,34 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
     }
 
     const assisted = hints > 0;
+    const key = current.key;
     let first = false;
-    if (mode === 'daily' && !dayRecord()) {
-      store.set(KEY.day(today.key), JSON.stringify({ t: timeMs, a: assisted } satisfies DayRecord));
+    if (mode === 'daily' && !dayRecord(key)) {
+      store.set(KEY.day(key), JSON.stringify({ t: timeMs, a: assisted } satisfies DayRecord));
       first = true;
+    } else if (mode === 'archive' && !dayRecord(key) && !lateRecord(key)) {
+      store.set(KEY.late(key), JSON.stringify({ t: timeMs, a: assisted } satisfies DayRecord));
     }
+    const isDay = mode === 'daily' || mode === 'archive';
     opts.onFinish?.({
-      dailyKey: mode === 'daily' ? today.key : undefined,
-      number: mode === 'daily' ? today.number : undefined,
+      dailyKey: isDay ? key : undefined,
+      number: isDay ? current.number : undefined,
       size: p.size,
       timeMs,
       assisted,
       hints,
       answer: [...p.solution],
+      ...(mode === 'archive' ? { archive: true } : {}),
     });
 
-    const rec = dayRecord();
+    const rec = dayRecord(key);
     const s = streak();
+    const withHints = `${hints} hint${hints > 1 ? 's' : ''}`;
     let note: string;
-    if (mode === 'practice') note = assisted ? `Solved with ${hints} hint${hints > 1 ? 's' : ''}. Practice is just for fun.` : 'Practice puzzles are just for fun.';
+    if (mode === 'practice') note = assisted ? `Solved with ${withHints}. Practice is just for fun.` : 'Practice puzzles are just for fun.';
+    else if (mode === 'archive') note = "Caught up! Catch-up solves don't count for streaks or the Staff Board.";
     else if (!first) note = `Replays don't change today's time (<strong>${fmt(rec!.t)}</strong>${rec!.a ? ', with hints' : ''}).`;
-    else if (assisted) note = `Solved with ${hints} hint${hints > 1 ? 's' : ''}, so this one stays off the Staff Board. Try tomorrow's without!`;
+    else if (assisted) note = `Solved with ${withHints}, so this one stays off the Staff Board. Try tomorrow's without!`;
     else note = "That's today's time.";
     if (mode === 'daily' && s > 1) note += `<br>${s}-day streak 🌱`;
 
@@ -519,8 +641,10 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
       mode === 'daily'
         ? [`Garden Plot #${today.number} · ${p.size}×${p.size}`, rec!.a ? `🌱 Solved with hints in ${fmt(rec!.t)}` : `🌳 Solved in ${fmt(rec!.t)}`, ...(s > 1 ? [`🔥 ${s}-day streak`] : [])].join('\n')
         : '';
+    const kicker =
+      mode === 'daily' ? `Garden Plot #${today.number} · ${p.size}×${p.size}` : mode === 'archive' ? `Garden Plot #${current.number} · ${shortDate(key)}` : `Practice · ${p.size}×${p.size}`;
     results.innerHTML = `
-      <div class="gp-kicker">${mode === 'daily' ? `Garden Plot #${today.number} · ${p.size}×${p.size}` : `Practice · ${p.size}×${p.size}`}</div>
+      <div class="gp-kicker">${kicker}</div>
       <h1 class="gp-title">Planted<span>!</span></h1>
       ${assisted ? '<div class="gp-badge">With hints</div>' : ''}
       <div class="gp-result-time">${fmt(timeMs)}</div>
@@ -530,12 +654,32 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
           ? `<button class="gp-btn" data-act="share">Share result</button>
              <textarea class="gp-share-text" readonly hidden aria-label="Result to copy">${esc(shareText)}</textarea>
              <button class="gp-btn gp-secondary" data-act="practice">Practice puzzle</button>`
-          : `<button class="gp-btn" data-act="practice">Another practice puzzle</button>`
+          : mode === 'archive'
+            ? `<button class="gp-btn" data-act="archive">Back to the archive</button>`
+            : `<button class="gp-btn" data-act="practice">Another practice puzzle</button>`
       }
       <button class="gp-btn gp-secondary" data-act="menu">Menu</button>
     `;
     results.dataset.share = shareText;
     setTimeout(() => show('results'), 1400);
+  }
+
+  /** A short shower of autumn leaves over the plot. */
+  function fallingLeaves() {
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const colours = ['#d9822b', '#c0392b', '#e5b52b', '#8fbf4a', '#a0522d'];
+    for (let k = 0; k < 26; k++) {
+      const leaf = document.createElement('i');
+      leaf.className = 'gp-leaf';
+      leaf.style.left = `${Math.random() * 100}%`;
+      leaf.style.background = colours[k % colours.length];
+      leaf.style.animationDelay = `${Math.random() * 0.6}s`;
+      leaf.style.animationDuration = `${1.4 + Math.random() * 0.9}s`;
+      leaf.style.setProperty('--drift', `${(Math.random() * 2 - 1) * 60}px`);
+      leaf.style.setProperty('--spin', `${(Math.random() * 2 - 1) * 540}deg`);
+      boardWrap.appendChild(leaf);
+      setTimeout(() => leaf.remove(), 2600);
+    }
   }
 
   function pause() {
@@ -551,8 +695,24 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
     sounds.wake();
     switch (t.dataset.act) {
       case 'daily':
-        start(generate(today.seed, today.options), 'daily');
+        refreshToday();
+        start(generate(today.seed, today.options), 'daily', today);
         break;
+      case 'archive':
+        stopClock();
+        clearInterval(timer);
+        renderArchive();
+        show('archive');
+        break;
+      case 'archive-month':
+        archiveMonth = new Date(archiveMonth.getFullYear(), archiveMonth.getMonth() + Number(t.dataset.step), 1, 12);
+        renderArchive();
+        break;
+      case 'archive-day': {
+        const info = daily(dateOf(t.dataset.key!), opts.salt);
+        start(generate(info.seed, info.options), info.key === today.key ? 'daily' : 'archive', info);
+        break;
+      }
       case 'practice':
         start(generate((Math.random() * 2 ** 32) >>> 0, PRACTICE), 'practice');
         break;
@@ -615,7 +775,12 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
   });
   const onVisibility = () => {
     if (document.hidden) pause();
+    else if (!menu.hidden) renderMenu(); // may be a new day
   };
+  const tick = window.setInterval(() => {
+    const el = menu.querySelector('.gp-countdown');
+    if (el && !menu.hidden) el.textContent = untilTomorrow();
+  }, 30000);
   document.addEventListener('visibilitychange', onVisibility);
   if (import.meta.env.DEV) (window as unknown as { __gp: unknown }).__gp = { get puzzle() { return puzzle; } };
 
@@ -625,6 +790,7 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
   return {
     destroy() {
       clearInterval(timer);
+      clearInterval(tick);
       document.removeEventListener('visibilitychange', onVisibility);
       root.remove();
     },
