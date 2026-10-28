@@ -4,12 +4,16 @@ import {
   checkBoard,
   countSolutions,
   daily,
+  dailyFromKey,
+  dayKey,
   EMPTY,
   generate,
   Grid,
   hintFor,
+  isDayKey,
   logicSolve,
   MARK,
+  minutesToMidnight,
   PRACTICE,
   TREE,
   TUTORIAL,
@@ -72,6 +76,30 @@ describe('daily puzzle', () => {
   it('changes every day, and per company when salted', () => {
     expect(daily(new Date(2026, 9, 27)).seed).not.toBe(daily(new Date(2026, 9, 28)).seed);
     expect(daily(new Date(2026, 9, 27), 'bishop').seed).not.toBe(daily(new Date(2026, 9, 27), 'other').seed);
+  });
+
+  it('follows the company time zone, not the phone or the server', () => {
+    const t = new Date('2026-10-28T06:30:00Z'); // 11:30 pm Oct 27 in Vancouver, 2:30 am Oct 28 in Toronto
+    expect(dayKey(t, 'America/Vancouver')).toBe('2026-10-27');
+    expect(dayKey(t, 'America/Toronto')).toBe('2026-10-28');
+    expect(dayKey(t, 'UTC')).toBe('2026-10-28');
+    expect(minutesToMidnight(t, 'America/Vancouver')).toBe(30);
+    expect(minutesToMidnight(t, 'UTC')).toBe(17 * 60 + 30);
+    // an unknown zone falls back to the device's day rather than failing
+    expect(dayKey(t, 'Not/AZone')).toBe(dayKey(t));
+  });
+
+  it('can be rebuilt from its day key alone (the server does this)', () => {
+    for (let k = 0; k < 30; k++) {
+      const date = new Date(2026, 9, 1 + k, 9);
+      expect(dailyFromKey(dayKey(date), 'org')).toEqual(daily(date, 'org'));
+    }
+    expect(dailyFromKey('2026-10-01').number).toBe(1);
+    expect(dailyFromKey('2026-11-01').weekday).toBe('Sunday');
+    expect(isDayKey('2026-02-29')).toBe(false);
+    expect(isDayKey('2028-02-29')).toBe(true);
+    expect(isDayKey('2026-10-1')).toBe(false);
+    expect(() => dailyFromKey('yesterday')).toThrow();
   });
 
   it('gets bigger through the week', () => {

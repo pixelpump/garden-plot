@@ -1,6 +1,6 @@
 import treesUrl from './assets/trees.png';
 import { BED_NAMES, explain } from './explain';
-import { checkBoard, daily, EMPTY, EPOCH_DATE, generate, Grid, hintFor, impliedMarks, MARK, PRACTICE, TREE, TUTORIAL, type Daily, type Puzzle } from './puzzle';
+import { checkBoard, daily, dailyFromKey, dayKey, EMPTY, EPOCH_DATE, generate, Grid, hintFor, impliedMarks, MARK, minutesToMidnight, PRACTICE, TREE, TUTORIAL, type Daily, type Puzzle } from './puzzle';
 import { Sounds } from './sounds';
 import './styles.css';
 
@@ -22,6 +22,8 @@ export interface GardenPlotResult {
 export interface GardenPlotOptions {
   /** Makes the daily puzzle unique to a company (e.g. its id). */
   salt?: string;
+  /** The company's time zone (IANA name). The daily puzzle rolls over at midnight there. Defaults to the phone's. */
+  timeZone?: string;
   /** Override "today" (testing). */
   date?: Date;
   /** Called once per solved puzzle (daily or practice; not the tutorial). */
@@ -90,10 +92,11 @@ const tutorialIntro = (oneTap: boolean) =>
 
 /** Mount Garden Plot into `el` (which should have a size, e.g. the full screen). */
 export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): { destroy(): void } {
-  let today = daily(opts.date ?? new Date(), opts.salt);
+  const todayInfo = () => (opts.date ? daily(opts.date, opts.salt) : dailyFromKey(dayKey(new Date(), opts.timeZone), opts.salt));
+  let today = todayInfo();
   /** Pick up a new day if the app was left open past midnight. */
   const refreshToday = () => {
-    if (!opts.date) today = daily(new Date(), opts.salt);
+    if (!opts.date) today = todayInfo();
   };
   const sounds = new Sounds();
   sounds.muted = store.get(KEY.muted) === '1';
@@ -205,8 +208,7 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
 
   /** Time until the next daily puzzle, e.g. "5h 12m". */
   function untilTomorrow(): string {
-    const n = new Date();
-    const mins = Math.max(1, Math.ceil((new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1).getTime() - n.getTime()) / 60000));
+    const mins = minutesToMidnight(new Date(), opts.timeZone);
     return mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
   }
 
@@ -251,7 +253,7 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
 
   function streak(): number {
     let n = 0;
-    const d = new Date(opts.date ?? new Date());
+    const d = dateOf(today.key);
     if (!dayRecord()) d.setDate(d.getDate() - 1); // today not solved yet: count up to yesterday
     while (dayRecord(daily(d, opts.salt).key)) {
       n++;
@@ -650,7 +652,7 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
       timeMs,
       assisted,
       hints,
-      answer: [...p.solution],
+      answer: Array.from({ length: p.size }, (_, r) => manual.subarray(r * p.size, (r + 1) * p.size).indexOf(TREE)),
       ...(mode === 'archive' ? { archive: true } : {}),
     });
 
@@ -815,8 +817,12 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
     else if (!menu.hidden) renderMenu(); // may be a new day
   };
   const tick = window.setInterval(() => {
+    if (menu.hidden) return;
+    const before = today.key;
+    refreshToday();
+    if (today.key !== before) return renderMenu(); // midnight passed: offer the new puzzle
     const el = menu.querySelector('.gp-countdown');
-    if (el && !menu.hidden) el.textContent = untilTomorrow();
+    if (el) el.textContent = untilTomorrow();
   }, 30000);
   document.addEventListener('visibilitychange', onVisibility);
   if (import.meta.env.DEV) (window as unknown as { __gp: unknown }).__gp = { get puzzle() { return puzzle; } };

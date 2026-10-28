@@ -60,26 +60,33 @@ The tests generate the next 90 daily puzzles. They check that each has exactly o
 
 ## Embedding in Shepherd (bishop_flow)
 
+Shepherd keeps its own copy of the game, so its builds don't depend on this repo:
+
+```
+npm run export:shepherd -- ../bishop_flow
+```
+
+That writes the game to `bishop_flow/src/lib/garden-plot/` and a CommonJS build of the puzzle checker (`src/server.ts`) to `bishop_flow/server/vendor/garden-plot.cjs`. Change the game here, re-export, and commit the result in bishop_flow.
+
 ```ts
-import { mountGardenPlot } from 'garden-plot';
+import { mountGardenPlot } from '@/lib/garden-plot';
 
 const game = mountGardenPlot(container, {
-  salt: company.id,            // each company gets its own daily puzzle
-  onFinish: (r) => api.post('/games/garden-plot/results', r),
+  salt: company.id,               // each company gets its own daily puzzle
+  timeZone: company.timeZone,     // the puzzle rolls over at the company's midnight
+  onFinish: (r) => r.dailyKey && api.post('/api/games/garden-plot/results', r),
   onExit: () => navigate(-1),
 });
 // later: game.destroy()
 ```
 
-`onFinish` receives `{ dailyKey, number, size, timeMs, assisted, hints, answer }`.
+`onFinish` receives `{ dailyKey, number, size, timeMs, assisted, hints, answer, archive? }`. `answer` is the column of the tree in each row.
 
 ### Keeping the Staff Board honest
 
-The server doesn't need to trust the client:
+The official time is the phone's timer (`timeMs`). It pauses when the app is in the background, so a phone call on the way to a job doesn't cost anyone. The server doesn't trust the rest:
 
-1. `GET /games/garden-plot/today` records *when* this person was served today's puzzle.
-2. `POST /games/garden-plot/results` regenerates the puzzle with `daily(date, companyId)` and `generate(seed, options)`, then checks `answer` against the solution.
-3. The server times the solve: receipt time minus served time. Use the client's `timeMs` only as a sanity check.
-4. Store `assisted`. Only unassisted first solves count for the daily, weekly and monthly contests.
-
-Day boundaries should use the company's time zone, not UTC.
+1. It rebuilds the day's puzzle from `dailyKey` and the company id (`verifyDaily` in `src/server.ts`) and checks `answer` against it.
+2. It rejects times faster than `minSolveMs(size)` (half a second per tree) and times longer than the gap since the start of that day.
+3. A solve only counts for the day it belongs to, in the company's time zone. Archive catch-ups and solves with hints (`assisted`) are stored but stay off the Staff Board.
+4. Each person's first solve of a day is the one that counts.

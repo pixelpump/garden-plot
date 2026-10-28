@@ -506,7 +506,7 @@ export const PRACTICE: GenerateOptions = { size: 8, maxLevel: 3, minLevel: 2 };
 export const TUTORIAL = { seed: 7, options: { size: 5, maxLevel: 2, minLevel: 2 } as GenerateOptions };
 
 export interface Daily {
-  /** YYYY-MM-DD in the player's (later: the company's) time zone. */
+  /** YYYY-MM-DD in the company's (or the device's) time zone. */
   key: string;
   number: number;
   weekday: string;
@@ -514,16 +514,67 @@ export interface Daily {
   options: GenerateOptions;
 }
 
-/** Same date → same puzzle for everyone. `salt` makes it per company. */
-export function daily(date: Date, salt = ''): Daily {
-  const y = date.getFullYear();
-  const m = date.getMonth();
-  const d = date.getDate();
-  const key = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-  const number = Math.round((Date.UTC(y, m, d) - EPOCH) / 86400000) + 1;
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/**
+ * The calendar day at `now` as YYYY-MM-DD, in `timeZone` (an IANA name such as
+ * "America/Vancouver") or, without one, in the device's own time zone.
+ */
+export function dayKey(now: Date = new Date(), timeZone?: string): string {
+  if (timeZone) {
+    const p = zoneParts(now, timeZone);
+    if (p) return `${p.year}-${pad(p.month)}-${pad(p.day)}`;
+  }
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/** Minutes until the next daily puzzle (midnight in `timeZone`, or the device's). */
+export function minutesToMidnight(now: Date = new Date(), timeZone?: string): number {
+  const p = timeZone ? zoneParts(now, timeZone) : null;
+  const h = p ? p.hour : now.getHours();
+  const m = p ? p.minute : now.getMinutes();
+  const s = p ? p.second : now.getSeconds();
+  return Math.max(1, Math.ceil(24 * 60 - h * 60 - m - s / 60));
+}
+
+function zoneParts(now: Date, timeZone: string) {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+    }).formatToParts(now);
+    const get = (type: string) => Number(parts.find((x) => x.type === type)?.value);
+    return { year: get('year'), month: get('month'), day: get('day'), hour: get('hour') % 24, minute: get('minute'), second: get('second') };
+  } catch {
+    return null; // unknown time zone: fall back to the device's
+  }
+}
+
+/** True for a real calendar date written YYYY-MM-DD. */
+export function isDayKey(key: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key);
+  if (!m) return false;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return d.getUTCFullYear() === +m[1] && d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3];
+}
+
+/**
+ * The daily puzzle for a YYYY-MM-DD day. Same day + salt → same puzzle on every
+ * phone and on the server. `salt` makes it per company.
+ */
+export function dailyFromKey(key: string, salt = ''): Daily {
+  if (!isDayKey(key)) throw new Error(`Not a day: ${key}`);
+  const t = Date.UTC(+key.slice(0, 4), +key.slice(5, 7) - 1, +key.slice(8, 10));
+  const number = Math.round((t - EPOCH) / 86400000) + 1;
   let seed = 2166136261;
   for (const ch of `garden-plot:${salt}:${key}`) seed = Math.imul(seed ^ ch.charCodeAt(0), 16777619);
-  const w = date.getDay();
+  const w = new Date(t).getUTCDay();
   return {
     key,
     number,
@@ -531,4 +582,9 @@ export function daily(date: Date, salt = ''): Daily {
     seed: seed >>> 0,
     options: WEEK[w],
   };
+}
+
+/** The daily puzzle for `date`'s calendar day in the device's time zone. */
+export function daily(date: Date, salt = ''): Daily {
+  return dailyFromKey(dayKey(date), salt);
 }
