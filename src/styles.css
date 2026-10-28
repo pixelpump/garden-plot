@@ -505,6 +505,16 @@
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
+.gp-pair.gp-trio {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.gp-pair.gp-trio .gp-btn {
+  padding: 0 4px;
+  font-size: 15px;
+}
+.gp-host-note {
+  color: var(--gp-text);
+}
 
 /* --- archive ------------------------------------------------------------- */
 .gp-screen.gp-archive {

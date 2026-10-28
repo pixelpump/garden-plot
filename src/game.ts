@@ -30,6 +30,14 @@ export interface GardenPlotOptions {
   onFinish?(result: GardenPlotResult): void;
   /** If set, the menu shows an Exit button. */
   onExit?(): void;
+  /** If set, the menu and the daily results show a Leaderboard button. */
+  onLeaderboard?(): void;
+}
+
+export interface GardenPlotHandle {
+  destroy(): void;
+  /** A line for the results screen from the host, e.g. the player's place on the Staff Board. */
+  setResultNote(text: string): void;
 }
 
 type Mode = 'daily' | 'archive' | 'practice' | 'tutorial';
@@ -91,7 +99,7 @@ const tutorialIntro = (oneTap: boolean) =>
   } I'll walk you through it.`;
 
 /** Mount Garden Plot into `el` (which should have a size, e.g. the full screen). */
-export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): { destroy(): void } {
+export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): GardenPlotHandle {
   const todayInfo = () => (opts.date ? daily(opts.date, opts.salt) : dailyFromKey(dayKey(new Date(), opts.timeZone), opts.salt));
   let today = todayInfo();
   /** Pick up a new day if the app was left open past midnight. */
@@ -192,6 +200,8 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
   let runningSince = 0;
   let running = false;
   let done = false;
+  /** The host's line on the results screen (see setResultNote). */
+  let resultNote = '';
   let timer = 0;
 
   const readRecord = (k: string): DayRecord | null => {
@@ -310,9 +320,10 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
       ${
         toured
           ? `<button class="gp-btn" data-act="daily">${rec ? 'Play today again' : "Play today's puzzle"}</button>
-             <div class="gp-pair">
+             <div class="gp-pair${opts.onLeaderboard ? ' gp-trio' : ''}">
                <button class="gp-btn gp-secondary" data-act="archive">Archive</button>
                <button class="gp-btn gp-secondary" data-act="practice">Practice</button>
+               ${opts.onLeaderboard ? '<button class="gp-btn gp-secondary" data-act="leaderboard">Leaders</button>' : ''}
              </div>`
           : `<button class="gp-btn" data-act="tutorial">Take the 1-minute tour</button>
              <button class="gp-btn gp-secondary" data-act="daily">${rec ? 'Play today again' : "Play today's puzzle"}</button>`
@@ -645,6 +656,7 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
       store.set(KEY.late(key), JSON.stringify({ t: timeMs, a: assisted } satisfies DayRecord));
     }
     const isDay = mode === 'daily' || mode === 'archive';
+    resultNote = '';
     opts.onFinish?.({
       dailyKey: isDay ? key : undefined,
       number: isDay ? current.number : undefined,
@@ -679,11 +691,19 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
       ${assisted ? '<div class="gp-badge">With hints</div>' : ''}
       <div class="gp-result-time">${fmt(timeMs)}</div>
       <div class="gp-note">${note}</div>
+      <div class="gp-note gp-host-note"${resultNote ? '' : ' hidden'}>${esc(resultNote)}</div>
       ${
         mode === 'daily'
           ? `<button class="gp-btn" data-act="share">Share result</button>
              <textarea class="gp-share-text" readonly hidden aria-label="Result to copy">${esc(shareText)}</textarea>
-             <button class="gp-btn gp-secondary" data-act="practice">Practice puzzle</button>`
+             ${
+               opts.onLeaderboard
+                 ? `<div class="gp-pair">
+                      <button class="gp-btn gp-secondary" data-act="leaderboard">Leaderboard</button>
+                      <button class="gp-btn gp-secondary" data-act="practice">Practice</button>
+                    </div>`
+                 : '<button class="gp-btn gp-secondary" data-act="practice">Practice puzzle</button>'
+             }`
           : mode === 'archive'
             ? `<button class="gp-btn" data-act="archive">Back to the archive</button>`
             : `<button class="gp-btn" data-act="practice">Another practice puzzle</button>`
@@ -810,6 +830,9 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
       case 'exit':
         opts.onExit?.();
         break;
+      case 'leaderboard':
+        opts.onLeaderboard?.();
+        break;
     }
   });
   const onVisibility = () => {
@@ -836,6 +859,14 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
       clearInterval(tick);
       document.removeEventListener('visibilitychange', onVisibility);
       root.remove();
+    },
+    setResultNote(text: string) {
+      resultNote = text;
+      const note = results.querySelector<HTMLElement>('.gp-host-note');
+      if (note) {
+        note.textContent = text;
+        note.hidden = !text;
+      }
     },
   };
 }

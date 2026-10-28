@@ -74,7 +74,12 @@ import { mountGardenPlot } from '@/lib/garden-plot';
 const game = mountGardenPlot(container, {
   salt: company.id,               // each company gets its own daily puzzle
   timeZone: company.timeZone,     // the puzzle rolls over at the company's midnight
-  onFinish: (r) => r.dailyKey && api.post('/api/games/garden-plot/results', r),
+  onFinish: async (r) => {
+    if (!r.dailyKey) return; // practice
+    const { place, players } = await api.post('/api/games/garden-plot/results', r);
+    if (place) game.setResultNote(`🏆 ${place} of ${players} today on the Staff Board`);
+  },
+  onLeaderboard: () => openLeaderboard(), // adds a Leaderboard button to the menu and results
   onExit: () => navigate(-1),
 });
 // later: game.destroy()
