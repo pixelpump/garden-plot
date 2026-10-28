@@ -38,6 +38,11 @@ export class Sounds {
   mark(): void {
     this.tone(1400, 900, 0.03, 'triangle', 0.05);
   }
+  /** Press-and-hold toggled ×: a tick you can also feel. */
+  hold(): void {
+    this.tone(1100, 700, 0.05, 'triangle', 0.07);
+    buzz(12);
+  }
   /** A rule just got broken. */
   oops(): void {
     this.tone(180, 120, 0.16, 'square', 0.05);

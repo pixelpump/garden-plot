@@ -325,6 +325,7 @@
   touch-action: none;
   -webkit-user-select: none;
   user-select: none;
+  -webkit-touch-callout: none; /* no iOS menu on press-and-hold */
   box-shadow: 0 6px 0 var(--gp-frame-dark);
 }
 .gp-board.gp-hidden .gp-cell {
@@ -437,6 +438,7 @@
 }
 .gp-chips {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
 }

@@ -9,6 +9,24 @@ describe('explain', () => {
     expect(unitName({ kind: 'bed', index: 4 })).toBe('the heather bed');
   });
 
+  it("says how to act in the player's control style", () => {
+    const p = generate(daily(new Date(2026, 9, 26)).seed, daily(new Date(2026, 9, 26)).options);
+    const g = new Grid(p.size, p.beds);
+    const board = new Uint8Array(g.n);
+    board[p.solution[0]] = TREE;
+    const implied = hintFor(p, board)!;
+    expect(explain(implied, g).text).not.toMatch(/press and hold/);
+    expect(explain(implied, g, { oneTap: true }).text).toMatch(/press and hold/);
+    // A "plant here" hint.
+    const solved = new Uint8Array(g.n);
+    p.solution.forEach((c, r) => r > 0 && (solved[r * p.size + c] = TREE));
+    for (let i = 0; i < g.n; i++) if (!solved[i] && i !== p.solution[0]) solved[i] = MARK;
+    const single = hintFor(p, solved)!;
+    expect(single.kind).toBe('single');
+    expect(explain(single, g).text).toMatch(/Tap it twice to plant/);
+    expect(explain(single, g, { oneTap: true }).text).toMatch(/Tap it to plant/);
+  });
+
   it('every hint on the way through a week of puzzles has a sensible explanation', () => {
     for (let d = 0; d < 7; d++) {
       const info = daily(new Date(2026, 10, 2 + d));

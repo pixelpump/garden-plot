@@ -28,35 +28,47 @@ function linesName(us: UnitRef[]): string {
 
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
+export interface ExplainOptions {
+  /** One tap plants a tree; × is press-and-hold. Changes the "how to" wording. */
+  oneTap?: boolean;
+}
+
 /** Tell the player what to do with the highlighted squares of an elimination step. */
-function markThem(e: Explained): Explained {
+function markThem(e: Explained, o: ExplainOptions): Explained {
   const what = e.target.length === 1 ? 'the highlighted square' : 'the highlighted squares';
-  return { ...e, text: `${e.text} Mark ${what} with ×.` };
+  const how = o.oneTap ? ' (press and hold, or drag across)' : '';
+  return { ...e, text: `${e.text} Mark ${what} with ×${how}.` };
 }
 
-export function explain(h: Hint, g: Grid): Explained {
-  const e = describe(h, g);
+export function explain(h: Hint, g: Grid, o: ExplainOptions = {}): Explained {
+  const e = describe(h, g, o);
   const eliminates = h.kind === 'bed-in-line' || h.kind === 'line-in-bed' || h.kind === 'touch-all' || h.kind === 'squeeze' || h.kind === 'what-if';
-  return eliminates ? markThem(e) : e;
+  return eliminates ? markThem(e, o) : e;
 }
 
-function describe(h: Hint, g: Grid): Explained {
+function describe(h: Hint, g: Grid, o: ExplainOptions): Explained {
   const cells = (u: UnitRef) => g.unit(u).cells;
   switch (h.kind) {
     case 'wrong-tree':
       return { text: "This tree isn't part of the solution. Tap it to clear it, then look again.", focus: [], target: [h.cell] };
     case 'wrong-mark':
-      return { text: 'This × is on a square that needs a tree. Tap it to clear the ×.', focus: [], target: [h.cell] };
+      return { text: 'This × is on a square that needs a tree. Tap it to plant one.', focus: [], target: [h.cell] };
     case 'reveal':
       return { text: 'A tree goes here.', focus: [], target: [h.cell] };
     case 'implied':
       return {
-        text: 'A tree rules out its whole row, column and bed, and every square touching it. Mark the highlighted squares with × (Auto-× can do this for you).',
+        text: `A tree rules out its whole row, column and bed, and every square touching it. Mark the highlighted squares with ×${
+          o.oneTap ? ' (press and hold, or drag across)' : ''
+        }. Auto-× can do this for you.`,
         focus: h.trees,
         target: h.eliminate,
       };
     case 'single':
-      return { text: `${cap(unitName(h.unit))} has only one open square left, so its tree goes here. Tap it twice to plant.`, focus: cells(h.unit), target: [h.place] };
+      return {
+        text: `${cap(unitName(h.unit))} has only one open square left, so its tree goes here. ${o.oneTap ? 'Tap it to plant.' : 'Tap it twice to plant.'}`,
+        focus: cells(h.unit),
+        target: [h.place],
+      };
     case 'bed-in-line': {
       const bed = unitName(h.bed);
       const line = unitName(h.line);

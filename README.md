@@ -11,7 +11,8 @@ npm run build      # typecheck + production build in dist/ (~10 KB gzipped)
 
 ## How it plays
 
-- **Tap** a square once for ×, twice for a tree, again to clear. **Drag** to mark several squares with ×.
+- **Tap** a square once for ×, twice for a tree, again to clear. **Press and hold** toggles ×. **Drag** to mark several squares with ×.
+- **One-tap trees** (optional): a tap plants a tree (or clears one), and × is press-and-hold or drag. Off by default, so new players get the familiar Queens-style controls. Hints and the tour word their instructions to match.
 - Trees that break a rule are striped red. Undo and Clear are under the board.
 - **Auto-×** (optional) marks every square a tree rules out, automatically.
 - **Hint** explains the next logical step in plain words and highlights the squares involved. On the daily puzzle, the first press warns that hints make the time *assisted*. Assisted times are kept but stay off the Staff Board.

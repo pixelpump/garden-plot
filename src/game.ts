@@ -72,6 +72,7 @@ const KEY = {
   /** First solve of a past day, from the archive. */
   late: (key: string) => `garden-plot:late:${key}`,
   autoX: 'garden-plot:auto-x',
+  oneTap: 'garden-plot:one-tap',
   muted: 'garden-plot:muted',
   toured: 'garden-plot:tutorial-done',
 };
@@ -79,8 +80,13 @@ const KEY = {
 /** Shown with the rules on the menu: a solved 4×4. */
 const EXAMPLE = { size: 4, beds: [0, 0, 1, 1, 0, 2, 2, 1, 3, 2, 2, 1, 3, 3, 2, 2], trees: [1, 7, 8, 14] };
 
-const TUTORIAL_INTRO =
-  "Each colour is a garden bed. Plant one tree in every row, every column and every bed, and trees can't touch, not even at the corners. Tap a square once for ×, twice for a tree. I'll walk you through it.";
+/** How long to press and hold a square to toggle × (ms). */
+const HOLD_MS = 420;
+
+const tutorialIntro = (oneTap: boolean) =>
+  `Each colour is a garden bed. Plant one tree in every row, every column and every bed, and trees can't touch, not even at the corners. ${
+    oneTap ? 'Tap a square to plant a tree; press and hold for ×.' : 'Tap a square once for ×, twice for a tree.'
+  } I'll walk you through it.`;
 
 /** Mount Garden Plot into `el` (which should have a size, e.g. the full screen). */
 export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): { destroy(): void } {
@@ -92,6 +98,8 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
   const sounds = new Sounds();
   sounds.muted = store.get(KEY.muted) === '1';
   let autoX = store.get(KEY.autoX) === '1';
+  /** One tap plants a tree (× by press-and-hold or drag) instead of tap → × → tree. */
+  let oneTap = store.get(KEY.oneTap) === '1';
 
   const root = document.createElement('div');
   root.className = 'gp-root';
@@ -125,6 +133,7 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
         <button class="gp-btn gp-secondary gp-small gp-hint-btn" data-act="hint">Hint</button>
       </div>
       <div class="gp-chips">
+        <button class="gp-chip" data-act="one-tap" aria-pressed="false">One-tap trees</button>
         <button class="gp-chip" data-act="auto-x" aria-pressed="false">Auto-×</button>
         <button class="gp-chip" data-act="mute" aria-pressed="true">Sound</button>
       </div>
@@ -151,6 +160,7 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
   const pausedEl = $('.gp-paused');
   const hintBtn = $('[data-act="hint"]');
   const autoChip = $('[data-act="auto-x"]');
+  const oneTapChip = $('[data-act="one-tap"]');
   const soundChip = $('[data-act="mute"]');
   const show = (which: 'menu' | 'game' | 'results' | 'archive') => {
     menu.hidden = which !== 'menu';
@@ -408,7 +418,7 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
       .join('');
     cells = [...boardEl.querySelectorAll<HTMLElement>('.gp-cell')];
     pausedEl.hidden = true;
-    coach = m === 'tutorial' ? { text: TUTORIAL_INTRO, action: { label: "Let's go", act: 'coach-next' } } : null;
+    coach = m === 'tutorial' ? { text: tutorialIntro(oneTap), action: { label: "Let's go", act: 'coach-next' } } : null;
     show('game');
     render();
     startClock();
@@ -421,7 +431,7 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
   function tutorialCoach() {
     const h = hintFor(puzzle, effective());
     if (!h) return;
-    const e = explain(h, grid);
+    const e = explain(h, grid, { oneTap });
     coach = { text: e.text, focus: e.focus, target: e.target };
   }
 
@@ -456,6 +466,7 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
       coachActions.innerHTML = coach.action ? `<button class="gp-btn" data-act="${coach.action.act}">${esc(coach.action.label)}</button>` : '';
     }
     autoChip.setAttribute('aria-pressed', String(autoX));
+    oneTapChip.setAttribute('aria-pressed', String(oneTap));
     soundChip.setAttribute('aria-pressed', String(!sounds.muted));
     assistedEl.hidden = !(mode === 'daily' && hints > 0);
     if (check.solved) win();
@@ -473,9 +484,12 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
     if (undo.length > 300) undo.shift();
   }
 
-  // Tap cycles empty → × → tree → empty. Dragging paints × on empty squares
-  // (or rubs × out, if the drag started on one). Trees are never dragged over.
-  let drag: { start: number; last: number; mode: 'mark' | 'erase' | null; moved: boolean; id: number } | undefined;
+  // Tap cycles empty → × → tree → empty (or, with one-tap trees, empty → tree → empty).
+  // Press and hold toggles ×. Dragging paints × on empty squares (or rubs × out,
+  // if the drag started on one). Trees are never dragged over.
+  let drag:
+    | { start: number; last: number; mode: 'mark' | 'erase' | null; moved: boolean; held: boolean; hold: number; id: number }
+    | undefined;
   const cellAt = (x: number, y: number) => {
     const c = document.elementFromPoint(x, y)?.closest<HTMLElement>('.gp-cell');
     return c && boardEl.contains(c) ? Number(c.dataset.i) : -1;
@@ -484,6 +498,7 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
     if (drag!.mode === 'mark' && eff[i] === EMPTY) manual[i] = MARK;
     else if (drag!.mode === 'erase' && manual[i] === MARK) manual[i] = EMPTY;
   };
+  boardEl.addEventListener('contextmenu', (e) => e.preventDefault()); // long-press menus
   boardEl.addEventListener('pointerdown', (e) => {
     sounds.wake();
     if (done || !running) return;
@@ -491,7 +506,15 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
     if (i < 0) return;
     e.preventDefault();
     const eff = effective();
-    drag = { start: i, last: i, mode: eff[i] === EMPTY ? 'mark' : manual[i] === MARK ? 'erase' : null, moved: false, id: e.pointerId };
+    const hold = window.setTimeout(() => {
+      if (!drag || drag.moved || drag.start !== i) return;
+      drag.held = true;
+      snapshot();
+      manual[i] = manual[i] === MARK ? EMPTY : MARK;
+      sounds.hold();
+      changed();
+    }, HOLD_MS);
+    drag = { start: i, last: i, mode: eff[i] === EMPTY ? 'mark' : manual[i] === MARK ? 'erase' : null, moved: false, held: false, hold, id: e.pointerId };
     try {
       boardEl.setPointerCapture(e.pointerId);
     } catch {
@@ -499,9 +522,10 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
     }
   });
   boardEl.addEventListener('pointermove', (e) => {
-    if (!drag || drag.id !== e.pointerId) return;
+    if (!drag || drag.id !== e.pointerId || drag.held) return;
     const i = cellAt(e.clientX, e.clientY);
     if (i < 0 || i === drag.last) return;
+    clearTimeout(drag.hold);
     const eff = effective();
     if (!drag.moved) {
       drag.moved = true;
@@ -515,11 +539,13 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
   });
   const endDrag = (e: PointerEvent) => {
     if (!drag || drag.id !== e.pointerId) return;
-    if (!drag.moved && e.type === 'pointerup') {
+    clearTimeout(drag.hold);
+    if (!drag.moved && !drag.held && e.type === 'pointerup') {
       const i = drag.start;
       const was = effective()[i];
       snapshot();
-      manual[i] = was === EMPTY ? MARK : was === MARK ? TREE : EMPTY;
+      if (oneTap) manual[i] = was === TREE ? EMPTY : TREE;
+      else manual[i] = was === EMPTY ? MARK : was === MARK ? TREE : EMPTY;
       if (manual[i] === TREE) sounds.plant();
       else if (manual[i] === MARK) sounds.mark();
       changed(i);
@@ -541,7 +567,7 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
     const h = hintFor(puzzle, effective());
     if (!h) return;
     hints++;
-    const e = explain(h, grid);
+    const e = explain(h, grid, { oneTap });
     coach = { text: e.text, focus: e.focus, target: e.target };
     sounds.hint();
     render();
@@ -744,6 +770,15 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
           snapshot();
           manual.fill(EMPTY);
           changed();
+        }
+        break;
+      case 'one-tap':
+        oneTap = !oneTap;
+        store.set(KEY.oneTap, oneTap ? '1' : '0');
+        if (puzzle && !done) {
+          if (mode === 'tutorial' && coach?.action) coach = { ...coach, text: tutorialIntro(oneTap) };
+          else if (mode === 'tutorial') tutorialCoach();
+          render();
         }
         break;
       case 'auto-x':
