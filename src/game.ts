@@ -1,4 +1,4 @@
-import treeUrl from './assets/tree.png';
+import treesUrl from './assets/trees.png';
 import { BED_NAMES, explain } from './explain';
 import { checkBoard, daily, EMPTY, EPOCH_DATE, generate, Grid, hintFor, impliedMarks, MARK, PRACTICE, TREE, TUTORIAL, type Daily, type Puzzle } from './puzzle';
 import { Sounds } from './sounds';
@@ -95,6 +95,8 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
 
   const root = document.createElement('div');
   root.className = 'gp-root';
+  // One sprite sheet of trees; each bed grows its own kind (frame k = bed k).
+  root.style.setProperty('--gp-trees', `url("${treesUrl}")`);
   root.innerHTML = `
     <div class="gp-screen" data-screen="menu"></div>
     <div class="gp-game" hidden>
@@ -265,7 +267,7 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
       .map(
         (b, i) =>
           `<div class="gp-cell${trees.includes(i) ? ' gp-tree' : ''}" style="--bed:var(--bed-${b});${borders(i, size, beds)}">${
-            trees.includes(i) ? `<img class="gp-t" src="${treeUrl}" alt="">` : ''
+            trees.includes(i) ? `<span class="gp-t" style="--k:${b}"></span>` : ''
           }</div>`,
       )
       .join('');
@@ -341,7 +343,7 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
         future || before
           ? `<div class="gp-cal-day gp-cal-off" aria-hidden="true">${d}</div>`
           : `<button class="gp-cal-day gp-cal-${state}${info.key === today.key ? ' gp-cal-today' : ''}" data-act="archive-day" data-key="${info.key}" aria-label="${esc(label)}">
-               <span>${d}</span>${rec || late ? `<img src="${treeUrl}" alt="">` : `<small>${info.options.size}×${info.options.size}</small>`}
+               <span>${d}</span>${rec || late ? `<span class="gp-t" style="--k:${info.number % 9}"></span>` : `<small>${info.options.size}×${info.options.size}</small>`}
              </button>`;
     }
     archive.innerHTML = `
@@ -401,7 +403,7 @@ export function mountGardenPlot(el: HTMLElement, opts: GardenPlotOptions = {}): 
             i,
             p.size,
             p.beds,
-          )}"><span class="gp-x" aria-hidden="true">×</span><img class="gp-t" src="${treeUrl}" alt=""></div>`,
+          )}"><span class="gp-x" aria-hidden="true">×</span><span class="gp-t" style="--k:${b}"></span></div>`,
       )
       .join('');
     cells = [...boardEl.querySelectorAll<HTMLElement>('.gp-cell')];

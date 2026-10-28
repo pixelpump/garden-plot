@@ -358,9 +358,13 @@
   opacity: 0.28;
 }
 .gp-t {
-  width: 72%;
-  height: 72%;
-  object-fit: contain;
+  /* Pinned to the cell (an empty element has no size of its own in the cell's grid). */
+  position: absolute;
+  inset: 14%;
+  /* Frame --k of the 9-frame tree sheet (scripts/draw-trees.py). */
+  background: var(--gp-trees) no-repeat;
+  background-size: 900% 100%;
+  background-position: calc(var(--k, 2) * 100% / 8) 0;
   image-rendering: pixelated;
   filter: drop-shadow(0 2px 0 rgba(42, 29, 18, 0.35));
 }
@@ -564,9 +568,13 @@
   font: 600 9px var(--gp-mono);
   color: var(--gp-muted);
 }
-.gp-cal-day img {
+.gp-cal-day .gp-t {
+  position: static;
+  display: block;
   width: 46%;
-  image-rendering: pixelated;
+  height: auto;
+  aspect-ratio: 1;
+  filter: none;
 }
 .gp-cal-off {
   border-style: dashed;

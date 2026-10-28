@@ -22,7 +22,15 @@ npm run build      # typecheck + production build in dist/ (~10 KB gzipped)
 
 ### Art
 
-The tree is hand-drawn pixel art: `scripts/draw-tree.py` writes `src/assets/tree.png` from a 16×16 character map. Edit the map and re-run it, or simply replace the PNG with other art of any size.
+Each garden bed grows its own kind of tree, chosen to stand out against that bed's colour:
+
+| Bed | Tree | Bed | Tree | Bed | Tree |
+|---|---|---|---|---|---|
+| sage | maple | clay | spruce | eucalyptus | copper beech |
+| wheat | pine | heather | aspen | ochre | cypress |
+| terracotta | oak | slate | cherry | stone | apple |
+
+They're hand-drawn 16×16 pixel art: `scripts/draw-trees.py` writes the 9-frame sheet `src/assets/trees.png` from character maps (frame *k* = bed *k*). Edit a shape or palette and re-run it, or replace the sheet with other art in the same 9-frame layout.
 
 ### The weekly rhythm
 
